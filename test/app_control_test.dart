@@ -147,5 +147,61 @@ void main() {
 
       await cubit.close();
     });
+
+    testWidgets('FirestoreAppControl shows optional update dialog when home is used',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirestoreAppControl(
+            cubit: cubit,
+            child: const Scaffold(body: Center(child: Text('Normal App Body'))),
+          ),
+        ),
+      );
+
+      await cubit.init();
+
+      // Trigger Optional Update
+      fakeDataSource.emit(makeConfig(minVersion: '1.0.0', latestVersion: '2.0.0'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New Version Available'), findsOneWidget);
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      await cubit.close();
+    });
+
+    testWidgets('FirestoreAppControl shows optional update dialog when used in MaterialApp.builder',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => FirestoreAppControl(
+            cubit: cubit,
+            child: child!,
+          ),
+          home: const Scaffold(body: Center(child: Text('Normal App Body'))),
+        ),
+      );
+
+      await cubit.init();
+
+      // Trigger Optional Update
+      fakeDataSource.emit(makeConfig(minVersion: '1.0.0', latestVersion: '2.0.0'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New Version Available'), findsOneWidget);
+
+      await cubit.close();
+    });
   });
 }

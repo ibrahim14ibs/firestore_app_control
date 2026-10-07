@@ -40,6 +40,8 @@ class FirestoreAppControl extends StatefulWidget {
   final ForceUpdateWidgetBuilder? forceUpdateBuilder;
   final OptionalUpdateDialogBuilder? optionalUpdateBuilder;
   final AppControlCubit? cubit;
+  final GlobalKey<NavigatorState>? navigatorKey;
+  final String? overrideVersion;
 
   const FirestoreAppControl({
     super.key,
@@ -51,6 +53,8 @@ class FirestoreAppControl extends StatefulWidget {
     this.forceUpdateBuilder,
     this.optionalUpdateBuilder,
     this.cubit,
+    this.navigatorKey,
+    this.overrideVersion,
   });
 
   @override
@@ -73,10 +77,21 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
         firestore: widget.firestore,
         documentPath: widget.documentPath,
       );
-      _cubit = AppControlCubit(dataSource: dataSource);
+      _cubit = AppControlCubit(
+        dataSource: dataSource,
+        overrideVersion: widget.overrideVersion,
+      );
       _internalCubit = true;
       _cubit.init();
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final current = _cubit.state;
+      if (current is AppControlOptionalUpdate && !current.dismissedInSession) {
+        _showOptionalDialog(context, current);
+      }
+    });
   }
 
   @override
@@ -85,6 +100,31 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
       _cubit.close();
     }
     super.dispose();
+  }
+
+  BuildContext? _resolveNavigatorContext() {
+    if (widget.navigatorKey?.currentContext != null) {
+      return widget.navigatorKey!.currentContext;
+    }
+    final ancestor = Navigator.maybeOf(context, rootNavigator: true);
+    if (ancestor != null) {
+      return ancestor.context;
+    }
+    NavigatorState? descendantNav;
+    void visitor(Element element) {
+      if (element.widget is Navigator) {
+        final state = (element as StatefulElement).state;
+        if (state is NavigatorState) {
+          descendantNav = state;
+          return;
+        }
+      }
+      if (descendantNav == null) {
+        element.visitChildren(visitor);
+      }
+    }
+    (context as Element).visitChildren(visitor);
+    return descendantNav?.context;
   }
 
   void _showOptionalDialog(
@@ -97,6 +137,8 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
+      final targetContext = _resolveNavigatorContext() ?? context;
+
       void onDismiss() {
         _optionalDialogVisible = false;
         if (mounted) {
@@ -104,23 +146,29 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
         }
       }
 
-      if (widget.optionalUpdateBuilder != null) {
-        widget.optionalUpdateBuilder!(
-          context,
-          state.platformConfig,
-          state.currentVersion,
-          onDismiss,
-        );
-      } else {
-        DefaultOptionalUpdateDialog.show(
-          context,
-          platformConfig: state.platformConfig,
-          currentVersion: state.currentVersion,
-          onDismiss: onDismiss,
-          primaryColor: widget.primaryColor,
-        ).then((_) {
-          _optionalDialogVisible = false;
-        });
+      try {
+        if (widget.optionalUpdateBuilder != null) {
+          widget.optionalUpdateBuilder!(
+            targetContext,
+            state.platformConfig,
+            state.currentVersion,
+            onDismiss,
+          );
+        } else {
+          DefaultOptionalUpdateDialog.show(
+            targetContext,
+            platformConfig: state.platformConfig,
+            currentVersion: state.currentVersion,
+            onDismiss: onDismiss,
+            primaryColor: widget.primaryColor,
+          ).then((_) {
+            onDismiss();
+          }).catchError((_) {
+            _optionalDialogVisible = false;
+          });
+        }
+      } catch (_) {
+        _optionalDialogVisible = false;
       }
     });
   }
