@@ -36,18 +36,51 @@ class DefaultOptionalUpdateDialog extends StatelessWidget {
   }
 
   Future<void> _openStore(BuildContext context) async {
+    final isArabic = Localizations.maybeLocaleOf(context)?.languageCode == 'ar';
     final rawUrl = platformConfig.storeUrl.trim();
-    if (rawUrl.isNotEmpty) {
-      final uri = Uri.tryParse(rawUrl);
-      if (uri != null) {
-        try {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } catch (_) {}
+    final errorMsg = isArabic
+        ? 'تعذر فتح متجر التطبيقات، يرجى التحقق من الرابط'
+        : 'Unable to open app store. Please check the store link.';
+
+    if (rawUrl.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(errorMsg)),
+        );
       }
+      return;
     }
-    if (context.mounted) {
-      Navigator.of(context, rootNavigator: true).pop();
-      onDismiss();
+
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(errorMsg)),
+        );
+      }
+      return;
+    }
+
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (launched) {
+        if (context.mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          onDismiss();
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(content: Text(errorMsg)),
+          );
+        }
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(errorMsg)),
+        );
+      }
     }
   }
 

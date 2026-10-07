@@ -42,6 +42,7 @@ class FirestoreAppControl extends StatefulWidget {
   final AppControlCubit? cubit;
   final GlobalKey<NavigatorState>? navigatorKey;
   final String? overrideVersion;
+  final Duration? optionalUpdateDelay;
 
   const FirestoreAppControl({
     super.key,
@@ -55,6 +56,7 @@ class FirestoreAppControl extends StatefulWidget {
     this.cubit,
     this.navigatorKey,
     this.overrideVersion,
+    this.optionalUpdateDelay,
   });
 
   @override
@@ -134,43 +136,54 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
     if (_optionalDialogVisible) return;
     _optionalDialogVisible = true;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+    void present() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
 
-      final targetContext = _resolveNavigatorContext() ?? context;
+        final targetContext = _resolveNavigatorContext() ?? context;
 
-      void onDismiss() {
-        _optionalDialogVisible = false;
-        if (mounted) {
-          _cubit.dismissOptionalUpdateForSession();
+        void onDismiss() {
+          _optionalDialogVisible = false;
+          if (mounted) {
+            _cubit.dismissOptionalUpdateForSession();
+          }
         }
-      }
 
-      try {
-        if (widget.optionalUpdateBuilder != null) {
-          widget.optionalUpdateBuilder!(
-            targetContext,
-            state.platformConfig,
-            state.currentVersion,
-            onDismiss,
-          );
-        } else {
-          DefaultOptionalUpdateDialog.show(
-            targetContext,
-            platformConfig: state.platformConfig,
-            currentVersion: state.currentVersion,
-            onDismiss: onDismiss,
-            primaryColor: widget.primaryColor,
-          ).then((_) {
-            onDismiss();
-          }).catchError((_) {
-            _optionalDialogVisible = false;
-          });
+        try {
+          if (widget.optionalUpdateBuilder != null) {
+            widget.optionalUpdateBuilder!(
+              targetContext,
+              state.platformConfig,
+              state.currentVersion,
+              onDismiss,
+            );
+          } else {
+            DefaultOptionalUpdateDialog.show(
+              targetContext,
+              platformConfig: state.platformConfig,
+              currentVersion: state.currentVersion,
+              onDismiss: onDismiss,
+              primaryColor: widget.primaryColor,
+            ).then((_) {
+              onDismiss();
+            }).catchError((_) {
+              _optionalDialogVisible = false;
+            });
+          }
+        } catch (_) {
+          _optionalDialogVisible = false;
         }
-      } catch (_) {
-        _optionalDialogVisible = false;
-      }
-    });
+      });
+    }
+
+    if (widget.optionalUpdateDelay != null &&
+        widget.optionalUpdateDelay! > Duration.zero) {
+      Future.delayed(widget.optionalUpdateDelay!, () {
+        if (mounted) present();
+      });
+    } else {
+      present();
+    }
   }
 
   @override
