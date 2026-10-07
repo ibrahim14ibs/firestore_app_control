@@ -20,14 +20,6 @@ A plug-and-play Flutter package for remote application control (Maintenance Mode
 
 ## التثبيت (Installation)
 
-### 1. عبر المجلد المحلي (Local Path)
-```yaml
-dependencies:
-  firestore_app_control:
-    path: ./packages/firestore_app_control
-```
-
-### 2. عبر مستودع Git خاص (Private Git Repository)
 ```yaml
 dependencies:
   firestore_app_control:
