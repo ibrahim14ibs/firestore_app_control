@@ -104,6 +104,24 @@ FirestoreAppControl(
 
 ---
 
+## جميع المعاملات والخيارات (Parameters Reference)
+
+| المعامل (Parameter) | النوع (Type) | القيمة الافتراضية (Default) | الوصف والشرح |
+| :--- | :--- | :--- | :--- |
+| `child` | `Widget` | **مطلوب (Required)** | الودجت الأساسي لتطبيقك (يُعرض في الوضع الطبيعي وتحت نافذة التحديث الاختياري). |
+| `documentPath` | `String` | `'app_config/global'` | مسار وثيقة الإعدادات داخل Firestore. |
+| `firestore` | `FirebaseFirestore?` | `FirebaseFirestore.instance` | مثيل فايرستور مخصص (مفيد عند تعدد المشاريع أو بيئات الاختبار). |
+| `primaryColor` | `Color?` | `Theme primaryColor` | اللون الأساسي للواجهات الافتراضية (شاشة الصيانة، شاشة التحديث الإجباري، وحوار التحديث الاختياري). |
+| `optionalUpdateDelay` | `Duration?` | `null` | مدة تأخير ظهور نافذة التحديث الاختياري (مهم جداً لتفادي ظهورها واختفائها فوق شاشة الـ Splash قبل الانتقال). |
+| `overrideVersion` | `String?` | `null` | إصدار مخصص لتجاوز قراءة إصدار التطبيق من النظام (مفيد جداً للتجربة والاختبار السريع). |
+| `navigatorKey` | `GlobalKey<NavigatorState>?` | `null` | مفتاح التنقل الخاص بالتطبيق لضمان فتح الـ Dialog في أي هيكل ملاحة متقدم. |
+| `maintenanceBuilder` | `MaintenanceWidgetBuilder?` | `null` | دالة لبناء واجهة صيانة مخصصة بالكامل بدلاً من الواجهة الافتراضية. |
+| `forceUpdateBuilder` | `ForceUpdateWidgetBuilder?` | `null` | دالة لبناء واجهة تحديث إجباري مخصصة بالكامل بدلاً من الواجهة الافتراضية. |
+| `optionalUpdateBuilder` | `OptionalUpdateDialogBuilder?` | `null` | دالة لعرض نافذة أو إشعار تحديث اختياري مخصص بدلاً من الـ Dialog الافتراضي. |
+| `cubit` | `AppControlCubit?` | `null` | تمرير كائن `AppControlCubit` مسبق التجهيز (لـ Dependency Injection مثل `get_it` أو الـ Mocking). |
+
+---
+
 ## هيكل وثيقة Firestore (Document Schema)
 
 المسار الافتراضي: `app_config/global`

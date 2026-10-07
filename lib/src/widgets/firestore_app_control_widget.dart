@@ -30,18 +30,67 @@ typedef OptionalUpdateDialogBuilder = void Function(
   VoidCallback onDismiss,
 );
 
-/// Root widget for plug-and-play Remote App Control.
+/// Root widget for plug-and-play remote application control.
+///
+/// Wraps the application to provide real-time maintenance mode blocking,
+/// forced updates, and optional update dialogs powered by Firebase Firestore.
 class FirestoreAppControl extends StatefulWidget {
+  /// The primary application widget tree.
+  ///
+  /// Displayed during normal application operation and underneath the optional
+  /// update dialog.
   final Widget child;
+
+  /// The Firestore document path where configuration is stored.
+  ///
+  /// Defaults to `'app_config/global'`.
   final String documentPath;
+
+  /// Custom [FirebaseFirestore] instance to use.
+  ///
+  /// If `null`, [FirebaseFirestore.instance] is used.
   final FirebaseFirestore? firestore;
+
+  /// Primary theme color applied to default maintenance and update screens.
+  ///
+  /// If `null`, falls back to `Theme.of(context).colorScheme.primary`.
   final Color? primaryColor;
+
+  /// Custom widget builder for maintenance mode.
+  ///
+  /// If provided, completely replaces the default maintenance screen.
   final MaintenanceWidgetBuilder? maintenanceBuilder;
+
+  /// Custom widget builder for force update mode.
+  ///
+  /// If provided, completely replaces the default force update screen.
   final ForceUpdateWidgetBuilder? forceUpdateBuilder;
+
+  /// Custom dialog builder or trigger for optional updates.
+  ///
+  /// If provided, completely replaces [DefaultOptionalUpdateDialog].
   final OptionalUpdateDialogBuilder? optionalUpdateBuilder;
+
+  /// Optional pre-configured [AppControlCubit] instance.
+  ///
+  /// Useful for dependency injection (e.g. `get_it`) or unit testing with mocks.
   final AppControlCubit? cubit;
+
+  /// Navigator key used to display dialogs safely.
+  ///
+  /// If omitted, the widget automatically resolves the closest ancestor or
+  /// descendant [NavigatorState].
   final GlobalKey<NavigatorState>? navigatorKey;
+
+  /// Overrides the detected app version for testing purposes.
+  ///
+  /// When set, bypasses `PackageInfo.fromPlatform()`.
   final String? overrideVersion;
+
+  /// Delay duration before displaying the optional update dialog.
+  ///
+  /// Useful to prevent dialogs from flashing on top of splash screens before
+  /// initial navigation settles.
   final Duration? optionalUpdateDelay;
 
   const FirestoreAppControl({
