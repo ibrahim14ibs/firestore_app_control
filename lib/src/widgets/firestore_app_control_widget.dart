@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -33,12 +34,13 @@ typedef OptionalUpdateDialogBuilder = void Function(
 /// Root widget for plug-and-play remote application control.
 ///
 /// Wraps the application to provide real-time maintenance mode blocking,
-/// forced updates, and optional update dialogs powered by Firebase Firestore.
+/// forced updates, and root stack overlay optional update dialogs powered by
+/// Firebase Firestore.
 class FirestoreAppControl extends StatefulWidget {
   /// The primary application widget tree.
   ///
   /// Displayed during normal application operation and underneath the optional
-  /// update dialog.
+  /// update overlay.
   final Widget child;
 
   /// The Firestore document path where configuration is stored.
@@ -76,10 +78,7 @@ class FirestoreAppControl extends StatefulWidget {
   /// Useful for dependency injection (e.g. `get_it`) or unit testing with mocks.
   final AppControlCubit? cubit;
 
-  /// Navigator key used to display dialogs safely.
-  ///
-  /// If omitted, the widget automatically resolves the closest ancestor or
-  /// descendant [NavigatorState].
+  /// Navigator key used when an external navigator reference is required.
   final GlobalKey<NavigatorState>? navigatorKey;
 
   /// Overrides the detected app version for testing purposes.
@@ -87,11 +86,16 @@ class FirestoreAppControl extends StatefulWidget {
   /// When set, bypasses `PackageInfo.fromPlatform()`.
   final String? overrideVersion;
 
-  /// Delay duration before displaying the optional update dialog.
+  /// Optional delay duration before displaying the optional update overlay.
   ///
-  /// Useful to prevent dialogs from flashing on top of splash screens before
-  /// initial navigation settles.
+  /// Defaults to `null` (shows immediately when detected).
   final Duration? optionalUpdateDelay;
+
+  /// Whether to automatically display the optional update dialog when detected.
+  ///
+  /// Defaults to `true`. When set to `false`, call
+  /// [FirestoreAppControl.showOptionalUpdateDialog] manually in your screen.
+  final bool autoShowOptionalUpdate;
 
   const FirestoreAppControl({
     super.key,
@@ -106,7 +110,19 @@ class FirestoreAppControl extends StatefulWidget {
     this.navigatorKey,
     this.overrideVersion,
     this.optionalUpdateDelay,
+    this.autoShowOptionalUpdate = true,
   });
+
+  /// Manually triggers display of the optional update overlay if an update is available.
+  ///
+  /// Useful when [autoShowOptionalUpdate] is `false` to display the update on a
+  /// specific screen (e.g. `HomePage` after splash navigation).
+  static void showOptionalUpdateDialog(BuildContext context) {
+    final state = context.findAncestorStateOfType<_FirestoreAppControlState>();
+    if (state != null) {
+      state._showOverlayManually();
+    }
+  }
 
   @override
   State<FirestoreAppControl> createState() => _FirestoreAppControlState();
@@ -115,7 +131,8 @@ class FirestoreAppControl extends StatefulWidget {
 class _FirestoreAppControlState extends State<FirestoreAppControl> {
   late final AppControlCubit _cubit;
   late final bool _internalCubit;
-  bool _optionalDialogVisible = false;
+  bool _isOverlayVisible = false;
+  Timer? _delayTimer;
 
   @override
   void initState() {
@@ -136,103 +153,54 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
       _cubit.init();
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final current = _cubit.state;
-      if (current is AppControlOptionalUpdate && !current.dismissedInSession) {
-        _showOptionalDialog(context, current);
-      }
-    });
+    _checkInitialOptionalUpdate();
+  }
+
+  void _checkInitialOptionalUpdate() {
+    final state = _cubit.state;
+    if (state is AppControlOptionalUpdate && !state.dismissedInSession) {
+      _scheduleOverlay(state);
+    }
+  }
+
+  void _scheduleOverlay(AppControlOptionalUpdate state) {
+    if (!widget.autoShowOptionalUpdate) return;
+    _delayTimer?.cancel();
+
+    if (widget.optionalUpdateDelay != null &&
+        widget.optionalUpdateDelay! > Duration.zero) {
+      _delayTimer = Timer(widget.optionalUpdateDelay!, () {
+        if (mounted) {
+          setState(() => _isOverlayVisible = true);
+        }
+      });
+    } else {
+      _isOverlayVisible = true;
+    }
+  }
+
+  void _dismissOverlay() {
+    _delayTimer?.cancel();
+    if (mounted) {
+      setState(() => _isOverlayVisible = false);
+    }
+    _cubit.dismissOptionalUpdateForSession();
+  }
+
+  void _showOverlayManually() {
+    final state = _cubit.state;
+    if (state is AppControlOptionalUpdate && !state.dismissedInSession) {
+      setState(() => _isOverlayVisible = true);
+    }
   }
 
   @override
   void dispose() {
+    _delayTimer?.cancel();
     if (_internalCubit) {
       _cubit.close();
     }
     super.dispose();
-  }
-
-  BuildContext? _resolveNavigatorContext() {
-    if (widget.navigatorKey?.currentContext != null) {
-      return widget.navigatorKey!.currentContext;
-    }
-    final ancestor = Navigator.maybeOf(context, rootNavigator: true);
-    if (ancestor != null) {
-      return ancestor.context;
-    }
-    NavigatorState? descendantNav;
-    void visitor(Element element) {
-      if (element.widget is Navigator) {
-        final state = (element as StatefulElement).state;
-        if (state is NavigatorState) {
-          descendantNav = state;
-          return;
-        }
-      }
-      if (descendantNav == null) {
-        element.visitChildren(visitor);
-      }
-    }
-    (context as Element).visitChildren(visitor);
-    return descendantNav?.context;
-  }
-
-  void _showOptionalDialog(
-    BuildContext context,
-    AppControlOptionalUpdate state,
-  ) {
-    if (_optionalDialogVisible) return;
-    _optionalDialogVisible = true;
-
-    void present() {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-
-        final targetContext = _resolveNavigatorContext() ?? context;
-
-        void onDismiss() {
-          _optionalDialogVisible = false;
-          if (mounted) {
-            _cubit.dismissOptionalUpdateForSession();
-          }
-        }
-
-        try {
-          if (widget.optionalUpdateBuilder != null) {
-            widget.optionalUpdateBuilder!(
-              targetContext,
-              state.platformConfig,
-              state.currentVersion,
-              onDismiss,
-            );
-          } else {
-            DefaultOptionalUpdateDialog.show(
-              targetContext,
-              platformConfig: state.platformConfig,
-              currentVersion: state.currentVersion,
-              onDismiss: onDismiss,
-              primaryColor: widget.primaryColor,
-            ).then((_) {
-              onDismiss();
-            }).catchError((_) {
-              _optionalDialogVisible = false;
-            });
-          }
-        } catch (_) {
-          _optionalDialogVisible = false;
-        }
-      });
-    }
-
-    if (widget.optionalUpdateDelay != null &&
-        widget.optionalUpdateDelay! > Duration.zero) {
-      Future.delayed(widget.optionalUpdateDelay!, () {
-        if (mounted) present();
-      });
-    } else {
-      present();
-    }
   }
 
   @override
@@ -244,10 +212,67 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
             curr is AppControlOptionalUpdate && !curr.dismissedInSession,
         listener: (context, state) {
           if (state is AppControlOptionalUpdate && !state.dismissedInSession) {
-            _showOptionalDialog(context, state);
+            if (widget.optionalUpdateBuilder != null) {
+              widget.optionalUpdateBuilder!(
+                context,
+                state.platformConfig,
+                state.currentVersion,
+                _dismissOverlay,
+              );
+            } else {
+              _scheduleOverlay(state);
+            }
           }
         },
         builder: (context, state) {
+          final showOverlay = _isOverlayVisible &&
+              state is AppControlOptionalUpdate &&
+              !state.dismissedInSession &&
+              widget.optionalUpdateBuilder == null;
+
+          final effectiveChild = Stack(
+            fit: StackFit.passthrough,
+            children: [
+              widget.child,
+              if (showOverlay)
+                Positioned.fill(
+                  child: PopScope(
+                    canPop: false,
+                    onPopInvokedWithResult: (didPop, _) {
+                      if (!didPop) {
+                        _dismissOverlay();
+                      }
+                    },
+                    child: Material(
+                      color: Colors.black54,
+                      type: MaterialType.canvas,
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: _dismissOverlay,
+                            ),
+                          ),
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 420),
+                              child: DefaultOptionalUpdateDialog(
+                                platformConfig: state.platformConfig,
+                                currentVersion: state.currentVersion,
+                                onDismiss: _dismissOverlay,
+                                primaryColor: widget.primaryColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+
           return switch (state) {
             AppControlMaintenance(:final maintenance) =>
               widget.maintenanceBuilder != null
@@ -281,7 +306,7 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
                       onRetry: () => _cubit.checkConfig(),
                       primaryColor: widget.primaryColor,
                     ),
-            _ => widget.child,
+            _ => effectiveChild,
           };
         },
       ),

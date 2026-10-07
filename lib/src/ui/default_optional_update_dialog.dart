@@ -35,6 +35,14 @@ class DefaultOptionalUpdateDialog extends StatelessWidget {
     );
   }
 
+  void _dismiss(BuildContext context) {
+    final route = ModalRoute.of(context);
+    if (route != null && route is PopupRoute) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+    onDismiss();
+  }
+
   Future<void> _openStore(BuildContext context) async {
     final isArabic = Localizations.maybeLocaleOf(context)?.languageCode == 'ar';
     final rawUrl = platformConfig.storeUrl.trim();
@@ -65,8 +73,7 @@ class DefaultOptionalUpdateDialog extends StatelessWidget {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (launched) {
         if (context.mounted) {
-          Navigator.of(context, rootNavigator: true).pop();
-          onDismiss();
+          _dismiss(context);
         }
       } else {
         if (context.mounted) {
@@ -143,10 +150,7 @@ class DefaultOptionalUpdateDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(context, rootNavigator: true).pop();
-                      onDismiss();
-                    },
+                    onPressed: () => _dismiss(context),
                     style: OutlinedButton.styleFrom(
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),

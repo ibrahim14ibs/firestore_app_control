@@ -112,7 +112,8 @@ FirestoreAppControl(
 | `documentPath` | `String` | `'app_config/global'` | مسار وثيقة الإعدادات داخل Firestore. |
 | `firestore` | `FirebaseFirestore?` | `FirebaseFirestore.instance` | مثيل فايرستور مخصص (مفيد عند تعدد المشاريع أو بيئات الاختبار). |
 | `primaryColor` | `Color?` | `Theme primaryColor` | اللون الأساسي للواجهات الافتراضية (شاشة الصيانة، شاشة التحديث الإجباري، وحوار التحديث الاختياري). |
-| `optionalUpdateDelay` | `Duration?` | `null` | مدة تأخير ظهور نافذة التحديث الاختياري (مهم جداً لتفادي ظهورها واختفائها فوق شاشة الـ Splash قبل الانتقال). |
+| `optionalUpdateDelay` | `Duration?` | `null` | مدة تأخير اختيارية قبل عرض الـ Overlay (افتراضياً يظهر فوراً وبثبات دون الحاجة لأي تأخير). |
+| `autoShowOptionalUpdate` | `bool` | `true` | عرض نافذة التحديث الاختياري تلقائياً. عند ضبطها بـ `false` يمكنك استدعاؤها يدوياً بدالة `FirestoreAppControl.showOptionalUpdateDialog(context)`. |
 | `overrideVersion` | `String?` | `null` | إصدار مخصص لتجاوز قراءة إصدار التطبيق من النظام (مفيد جداً للتجربة والاختبار السريع). |
 | `navigatorKey` | `GlobalKey<NavigatorState>?` | `null` | مفتاح التنقل الخاص بالتطبيق لضمان فتح الـ Dialog في أي هيكل ملاحة متقدم. |
 | `maintenanceBuilder` | `MaintenanceWidgetBuilder?` | `null` | دالة لبناء واجهة صيانة مخصصة بالكامل بدلاً من الواجهة الافتراضية. |

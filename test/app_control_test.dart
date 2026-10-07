@@ -203,5 +203,65 @@ void main() {
 
       await cubit.close();
     });
+
+    testWidgets(
+        'Optional update overlay survives pushReplacement from SplashPage without disappearing',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      late BuildContext splashContext;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => FirestoreAppControl(
+            cubit: cubit,
+            child: child!,
+          ),
+          home: Builder(
+            builder: (ctx) {
+              splashContext = ctx;
+              return const Scaffold(body: Center(child: Text('Splash Screen Logo')));
+            },
+          ),
+        ),
+      );
+
+      await cubit.init();
+
+      // Trigger Optional Update while on Splash
+      fakeDataSource.emit(makeConfig(minVersion: '1.0.0', latestVersion: '2.0.0'));
+      await tester.pumpAndSettle();
+
+      // Assert dialog appeared over Splash
+      expect(find.text('New Version Available'), findsOneWidget);
+      expect(find.text('Splash Screen Logo'), findsOneWidget);
+
+      // Now Splash completes and calls pushReplacement to Main Navigation Page!
+      Navigator.of(splashContext).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => const Scaffold(body: Center(child: Text('Main Navigation Page'))),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // THE CRITICAL TEST:
+      // Dialog MUST STILL BE VISIBLE! It did NOT disappear!
+      expect(find.text('New Version Available'), findsOneWidget);
+      expect(find.text('Main Navigation Page'), findsOneWidget);
+      expect(find.text('Splash Screen Logo'), findsNothing);
+
+      // Dismiss dialog
+      await tester.tap(find.text('Later'));
+      await tester.pumpAndSettle();
+
+      // Dialog is gone, Main Navigation Page remains!
+      expect(find.text('New Version Available'), findsNothing);
+      expect(find.text('Main Navigation Page'), findsOneWidget);
+
+      await cubit.close();
+    });
   });
 }
