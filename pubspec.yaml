@@ -1,6 +1,6 @@
 name: firestore_app_control
 description: A plug-and-play Flutter package for remote application control (Maintenance Mode, Force Update, Optional Update) via Firebase Firestore with realtime updates and offline cache support.
-version: 1.0.0
+version: 1.1.0
 homepage: https://github.com/nowmowsoft/firestore_app_control
 
 environment:

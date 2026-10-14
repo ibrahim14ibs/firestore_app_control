@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "firestore_app_control",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": [
         "cloud_firestore",
         "equatable",

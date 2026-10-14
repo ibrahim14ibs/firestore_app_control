@@ -86,7 +86,9 @@ class _DefaultForceUpdateViewState extends State<DefaultForceUpdateView> {
             : 'Please update the app to continue using it.');
     final buttonLabel = isArabic ? 'تحديث الآن' : 'Update Now';
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Padding(
@@ -196,6 +198,7 @@ class _DefaultForceUpdateViewState extends State<DefaultForceUpdateView> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

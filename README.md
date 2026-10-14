@@ -116,10 +116,36 @@ FirestoreAppControl(
 | `autoShowOptionalUpdate` | `bool` | `true` | عرض نافذة التحديث الاختياري تلقائياً. عند ضبطها بـ `false` يمكنك استدعاؤها يدوياً بدالة `FirestoreAppControl.showOptionalUpdateDialog(context)`. |
 | `overrideVersion` | `String?` | `null` | إصدار مخصص لتجاوز قراءة إصدار التطبيق من النظام (مفيد جداً للتجربة والاختبار السريع). |
 | `navigatorKey` | `GlobalKey<NavigatorState>?` | `null` | مفتاح التنقل الخاص بالتطبيق لضمان فتح الـ Dialog في أي هيكل ملاحة متقدم. |
+| `maintenanceDisplayMode` | `AppControlDisplayMode` | `AppControlDisplayMode.fullScreen` | نمط عرض الصيانة: `fullScreen` (شاشة كاملة) أو `dialog` (نافذة منبثقة فوق المحتوى). كلاهما يمنع الرجوع أو الخروج عبر `PopScope`. |
+| `forceUpdateDisplayMode` | `AppControlDisplayMode` | `AppControlDisplayMode.fullScreen` | نمط عرض التحديث الإجباري: `fullScreen` أو `dialog`. كلاهما يمنع الرجوع أو الخروج عبر `PopScope`. |
+| `optionalUpdateDisplayMode` | `OptionalUpdateDisplayMode` | `OptionalUpdateDisplayMode.dialog` | نمط عرض التحديث الاختياري: `dialog` (نافذة منبثقة)، أو `snackBar` (شريط عائم غير مزعج بأسفل الشاشة)، أو `fullScreen`. |
 | `maintenanceBuilder` | `MaintenanceWidgetBuilder?` | `null` | دالة لبناء واجهة صيانة مخصصة بالكامل بدلاً من الواجهة الافتراضية. |
 | `forceUpdateBuilder` | `ForceUpdateWidgetBuilder?` | `null` | دالة لبناء واجهة تحديث إجباري مخصصة بالكامل بدلاً من الواجهة الافتراضية. |
-| `optionalUpdateBuilder` | `OptionalUpdateDialogBuilder?` | `null` | دالة لعرض نافذة أو إشعار تحديث اختياري مخصص بدلاً من الـ Dialog الافتراضي. |
+| `optionalUpdateBuilder` | `OptionalUpdateDialogBuilder?` | `null` | دالة لعرض نافذة أو إشعار تحديث اختياري مخصص بدلاً من الواجهات الافتراضية. |
 | `cubit` | `AppControlCubit?` | `null` | تمرير كائن `AppControlCubit` مسبق التجهيز (لـ Dependency Injection مثل `get_it` أو الـ Mocking). |
+
+---
+
+## أنماط العرض المدمجة (Display Modes)
+
+تتيح لك الحزمة التبديل بين الشاشة الكاملة أو الـ Dialog أو الـ SnackBar دون كتابة أي Custom Widgets:
+
+```dart
+FirestoreAppControl(
+  // عرض الصيانة كنافذة منبثقة تمنع الإغلاق أو الرجوع
+  maintenanceDisplayMode: AppControlDisplayMode.dialog,
+
+  // عرض التحديث الإجباري كنافذة منبثقة تمنع الإغلاق أو الرجوع
+  forceUpdateDisplayMode: AppControlDisplayMode.dialog,
+
+  // عرض التحديث الاختياري كـ SnackBar عائم أنيق أسفل الشاشة
+  optionalUpdateDisplayMode: OptionalUpdateDisplayMode.snackBar,
+
+  child: child!,
+)
+```
+
+> **ملاحظة الأمان (PopScope Security):** في كل من وضع الصيانة والتحديث الإجباري (سواءً كشاشة كاملة أو كـ Dialog أو عبر custom builder)، يتم تفعيل `PopScope(canPop: false)` تلقائياً لمنع زر الرجوع في أندرويد وإيماءات السحب للخلف من تجاوز الحجب.
 
 ---
 

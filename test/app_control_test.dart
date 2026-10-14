@@ -263,5 +263,150 @@ void main() {
 
       await cubit.close();
     });
+
+    testWidgets('Maintenance mode renders as dialog and prevents popping when configured',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirestoreAppControl(
+            cubit: cubit,
+            maintenanceDisplayMode: AppControlDisplayMode.dialog,
+            child: const Scaffold(body: Center(child: Text('Normal App Body'))),
+          ),
+        ),
+      );
+
+      await cubit.init();
+
+      fakeDataSource.emit(makeConfig(maintenance: true));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DefaultMaintenanceDialog), findsOneWidget);
+      // App body is still mounted behind the barrier
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      // Verify PopScope has canPop: false
+      final popScopeFinder = find.descendant(
+        of: find.byType(FirestoreAppControl),
+        matching: find.byType(PopScope),
+      );
+      expect(popScopeFinder, findsWidgets);
+      final popScope = tester.widget<PopScope>(popScopeFinder.first);
+      expect(popScope.canPop, isFalse);
+
+      await cubit.close();
+    });
+
+    testWidgets('Force update mode renders as dialog and prevents popping when configured',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirestoreAppControl(
+            cubit: cubit,
+            forceUpdateDisplayMode: AppControlDisplayMode.dialog,
+            child: const Scaffold(body: Center(child: Text('Normal App Body'))),
+          ),
+        ),
+      );
+
+      await cubit.init();
+
+      fakeDataSource.emit(makeConfig(minVersion: '2.0.0'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DefaultForceUpdateDialog), findsOneWidget);
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      // Verify PopScope has canPop: false
+      final popScopeFinder = find.descendant(
+        of: find.byType(FirestoreAppControl),
+        matching: find.byType(PopScope),
+      );
+      expect(popScopeFinder, findsWidgets);
+      final popScope = tester.widget<PopScope>(popScopeFinder.first);
+      expect(popScope.canPop, isFalse);
+
+      await cubit.close();
+    });
+
+    testWidgets('Optional update renders as floating SnackBar when configured and can be dismissed',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirestoreAppControl(
+            cubit: cubit,
+            optionalUpdateDisplayMode: OptionalUpdateDisplayMode.snackBar,
+            child: const Scaffold(body: Center(child: Text('Normal App Body'))),
+          ),
+        ),
+      );
+
+      await cubit.init();
+
+      fakeDataSource.emit(makeConfig(minVersion: '1.0.0', latestVersion: '2.0.0'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DefaultOptionalUpdateSnackBar), findsOneWidget);
+      expect(find.text('Update Available'), findsOneWidget);
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      // Dismiss via close button
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DefaultOptionalUpdateSnackBar), findsNothing);
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      await cubit.close();
+    });
+
+    testWidgets('Optional update renders as full-screen view when configured',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirestoreAppControl(
+            cubit: cubit,
+            optionalUpdateDisplayMode: OptionalUpdateDisplayMode.fullScreen,
+            child: const Scaffold(body: Center(child: Text('Normal App Body'))),
+          ),
+        ),
+      );
+
+      await cubit.init();
+
+      fakeDataSource.emit(makeConfig(minVersion: '1.0.0', latestVersion: '2.0.0'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DefaultOptionalUpdateView), findsOneWidget);
+
+      // Dismiss via Later button
+      await tester.tap(find.text('Later, Continue to App'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DefaultOptionalUpdateView), findsNothing);
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      await cubit.close();
+    });
   });
 }

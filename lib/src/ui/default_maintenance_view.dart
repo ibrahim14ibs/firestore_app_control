@@ -37,7 +37,9 @@ class DefaultMaintenanceView extends StatelessWidget {
 
     final retryLabel = isArabic ? 'التحقق مرة أخرى' : 'Check Again';
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Padding(
@@ -110,6 +112,7 @@ class DefaultMaintenanceView extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
