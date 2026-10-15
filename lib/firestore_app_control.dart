@@ -10,5 +10,6 @@ export 'src/ui/default_maintenance_view.dart';
 export 'src/ui/default_optional_update_dialog.dart';
 export 'src/ui/default_optional_update_snackbar.dart';
 export 'src/ui/default_optional_update_view.dart';
+export 'src/utils/app_control_logger.dart';
 export 'src/utils/app_version.dart';
 export 'src/widgets/firestore_app_control_widget.dart';

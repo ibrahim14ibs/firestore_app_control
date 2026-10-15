@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // App control configuration document
+    match /app_config/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.1
+
+### Added
+- **Diagnostic Runtime Logging (`AppControlLogger`)**:
+  - Added structured diagnostic console logging for Firestore document fetch/snapshots, version evaluation, state transitions, and store launch events.
+  - Added `enableLogging` and `logHandler` parameters to `FirestoreAppControl`, `AppControlCubit`, and `FirestoreConfigDataSourceImpl`.
+  - Added `AppControlLogger.enableLogging` global switch and `AppControlLogger.customHandler` for custom sinks (e.g., Sentry, Firebase Crashlytics).
+  - Added typed log levels (`AppControlLogLevel.debug`, `info`, `warning`, `error`).
+- **Enhanced Builder Display Modes**:
+  - `forceUpdateBuilder` and `maintenanceBuilder` now respect `AppControlDisplayMode.dialog` (rendering inside the modal dialog overlay while keeping the host application mounted in the background).
+  - `optionalUpdateBuilder` now uses `OptionalUpdateWidgetBuilder = Widget Function(...)`, enabling custom widgets to render directly in the in-stack overlay while supporting all `OptionalUpdateDisplayMode` styles (`dialog`, `snackBar`, `fullScreen`) and `optionalUpdateDelay`.
+- **Directionality Resilience**:
+  - Added automatic fallback `Directionality` handling in `FirestoreAppControl` so the widget tree never throws `No Directionality widget found` when wrapped outside `MaterialApp`.
+- **Comprehensive Interactive Showcase (`example/`)**:
+  - Added full interactive example connected to Firebase via FlutterFire CLI with live Firestore presets pusher, app version simulator, display mode switcher, custom builder toggles, and live diagnostics log console.
+
 ## 1.1.0
 
 ### Added

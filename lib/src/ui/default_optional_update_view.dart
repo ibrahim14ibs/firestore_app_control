@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/app_config.dart';
+import '../utils/app_control_logger.dart';
 
 /// Full-screen view for optional updates with a dismiss/continue button.
 class DefaultOptionalUpdateView extends StatefulWidget {
@@ -32,12 +33,14 @@ class _DefaultOptionalUpdateViewState extends State<DefaultOptionalUpdateView> {
         : 'Unable to open app store';
 
     if (rawUrl.isEmpty) {
+      AppControlLogger.warning('Cannot open store: storeUrl is empty.');
       setState(() => _errorMessage = fallbackError);
       return;
     }
 
     final uri = Uri.tryParse(rawUrl);
     if (uri == null) {
+      AppControlLogger.warning('Cannot open store: invalid URI "$rawUrl".');
       setState(() => _errorMessage = fallbackError);
       return;
     }
@@ -47,14 +50,22 @@ class _DefaultOptionalUpdateViewState extends State<DefaultOptionalUpdateView> {
       _errorMessage = null;
     });
 
+    AppControlLogger.info('Launching store URL: "$rawUrl"...');
     try {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (launched) {
+        AppControlLogger.info('Successfully launched store URL: "$rawUrl".');
         widget.onDismiss();
       } else if (mounted) {
+        AppControlLogger.warning('launchUrl returned false for store URL: "$rawUrl".');
         setState(() => _errorMessage = fallbackError);
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppControlLogger.error(
+        'Exception while launching store URL "$rawUrl": $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(() => _errorMessage = fallbackError);
       }

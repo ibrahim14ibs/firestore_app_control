@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/app_config.dart';
+import '../utils/app_control_logger.dart';
 
 class DefaultForceUpdateView extends StatefulWidget {
   final PlatformConfig platformConfig;
@@ -33,12 +34,14 @@ class _DefaultForceUpdateViewState extends State<DefaultForceUpdateView> {
         : 'Unable to open app store';
 
     if (rawUrl.isEmpty) {
+      AppControlLogger.warning('Cannot open store: storeUrl is empty.');
       setState(() => _errorMessage = fallbackError);
       return;
     }
 
     final uri = Uri.tryParse(rawUrl);
     if (uri == null) {
+      AppControlLogger.warning('Cannot open store: invalid URI "$rawUrl".');
       setState(() => _errorMessage = fallbackError);
       return;
     }
@@ -48,12 +51,21 @@ class _DefaultForceUpdateViewState extends State<DefaultForceUpdateView> {
       _errorMessage = null;
     });
 
+    AppControlLogger.info('Launching store URL: "$rawUrl"...');
     try {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!launched && mounted) {
+        AppControlLogger.warning('launchUrl returned false for store URL: "$rawUrl".');
         setState(() => _errorMessage = fallbackError);
+      } else {
+        AppControlLogger.info('Successfully launched store URL: "$rawUrl".');
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppControlLogger.error(
+        'Exception while launching store URL "$rawUrl": $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(() {
           _errorMessage = widget.isOffline

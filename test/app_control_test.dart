@@ -408,5 +408,123 @@ void main() {
 
       await cubit.close();
     });
+
+    testWidgets('forceUpdateBuilder renders inside dialog overlay when forceUpdateDisplayMode is dialog',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirestoreAppControl(
+            cubit: cubit,
+            forceUpdateDisplayMode: AppControlDisplayMode.dialog,
+            forceUpdateBuilder: (context, config, version, isOffline, onRetry) =>
+                const Card(child: Text('Custom Force Update Dialog Body')),
+            child: const Scaffold(body: Center(child: Text('Normal App Body'))),
+          ),
+        ),
+      );
+
+      await cubit.init();
+
+      fakeDataSource.emit(makeConfig(minVersion: '2.0.0'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom Force Update Dialog Body'), findsOneWidget);
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      // Verify PopScope has canPop: false
+      final popScopeFinder = find.descendant(
+        of: find.byType(FirestoreAppControl),
+        matching: find.byType(PopScope),
+      );
+      expect(popScopeFinder, findsWidgets);
+      final popScope = tester.widget<PopScope>(popScopeFinder.first);
+      expect(popScope.canPop, isFalse);
+
+      await cubit.close();
+    });
+
+    testWidgets('maintenanceBuilder renders inside dialog overlay when maintenanceDisplayMode is dialog',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirestoreAppControl(
+            cubit: cubit,
+            maintenanceDisplayMode: AppControlDisplayMode.dialog,
+            maintenanceBuilder: (context, maintenance, onRetry) =>
+                const Card(child: Text('Custom Maintenance Dialog Body')),
+            child: const Scaffold(body: Center(child: Text('Normal App Body'))),
+          ),
+        ),
+      );
+
+      await cubit.init();
+
+      fakeDataSource.emit(makeConfig(maintenance: true));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom Maintenance Dialog Body'), findsOneWidget);
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      await cubit.close();
+    });
+
+    testWidgets('optionalUpdateBuilder renders custom widget in overlay and dismisses properly',
+        (tester) async {
+      final cubit = AppControlCubit(
+        dataSource: fakeDataSource,
+        overrideVersion: '1.0.0',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FirestoreAppControl(
+            cubit: cubit,
+            optionalUpdateDisplayMode: OptionalUpdateDisplayMode.dialog,
+            optionalUpdateBuilder: (context, config, version, onDismiss) => Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.white,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Custom Optional Update UI'),
+                  ElevatedButton(
+                    onPressed: onDismiss,
+                    child: const Text('Dismiss Custom Update'),
+                  ),
+                ],
+              ),
+            ),
+            child: const Scaffold(body: Center(child: Text('Normal App Body'))),
+          ),
+        ),
+      );
+
+      await cubit.init();
+
+      fakeDataSource.emit(makeConfig(minVersion: '1.0.0', latestVersion: '2.0.0'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom Optional Update UI'), findsOneWidget);
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      // Dismiss custom dialog
+      await tester.tap(find.text('Dismiss Custom Update'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom Optional Update UI'), findsNothing);
+      expect(find.text('Normal App Body'), findsOneWidget);
+
+      await cubit.close();
+    });
   });
 }

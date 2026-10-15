@@ -24,7 +24,7 @@ A plug-and-play Flutter package for remote application control (Maintenance Mode
 dependencies:
   firestore_app_control:
     git:
-      url: https://github.com/your-org/firestore_app_control.git
+      url: https://github.com/ibrahim14ibs/firestore_app_control.git
       ref: main
 ```
 
@@ -90,11 +90,11 @@ FirestoreAppControl(
     );
   },
 
-  // حوار تحديث اختياري مخصص
+  // واجهة تحديث اختياري مخصصة
   optionalUpdateBuilder: (context, platformConfig, currentVersion, onDismiss) {
-    showMyCustomDialog(
-      context: context,
-      onLater: onDismiss,
+    return MyCustomOptionalUpdateDialog(
+      platformConfig: platformConfig,
+      onDismiss: onDismiss,
     );
   },
 
@@ -116,13 +116,40 @@ FirestoreAppControl(
 | `autoShowOptionalUpdate` | `bool` | `true` | عرض نافذة التحديث الاختياري تلقائياً. عند ضبطها بـ `false` يمكنك استدعاؤها يدوياً بدالة `FirestoreAppControl.showOptionalUpdateDialog(context)`. |
 | `overrideVersion` | `String?` | `null` | إصدار مخصص لتجاوز قراءة إصدار التطبيق من النظام (مفيد جداً للتجربة والاختبار السريع). |
 | `navigatorKey` | `GlobalKey<NavigatorState>?` | `null` | مفتاح التنقل الخاص بالتطبيق لضمان فتح الـ Dialog في أي هيكل ملاحة متقدم. |
-| `maintenanceDisplayMode` | `AppControlDisplayMode` | `AppControlDisplayMode.fullScreen` | نمط عرض الصيانة: `fullScreen` (شاشة كاملة) أو `dialog` (نافذة منبثقة فوق المحتوى). كلاهما يمنع الرجوع أو الخروج عبر `PopScope`. |
-| `forceUpdateDisplayMode` | `AppControlDisplayMode` | `AppControlDisplayMode.fullScreen` | نمط عرض التحديث الإجباري: `fullScreen` أو `dialog`. كلاهما يمنع الرجوع أو الخروج عبر `PopScope`. |
-| `optionalUpdateDisplayMode` | `OptionalUpdateDisplayMode` | `OptionalUpdateDisplayMode.dialog` | نمط عرض التحديث الاختياري: `dialog` (نافذة منبثقة)، أو `snackBar` (شريط عائم غير مزعج بأسفل الشاشة)، أو `fullScreen`. |
-| `maintenanceBuilder` | `MaintenanceWidgetBuilder?` | `null` | دالة لبناء واجهة صيانة مخصصة بالكامل بدلاً من الواجهة الافتراضية. |
-| `forceUpdateBuilder` | `ForceUpdateWidgetBuilder?` | `null` | دالة لبناء واجهة تحديث إجباري مخصصة بالكامل بدلاً من الواجهة الافتراضية. |
-| `optionalUpdateBuilder` | `OptionalUpdateDialogBuilder?` | `null` | دالة لعرض نافذة أو إشعار تحديث اختياري مخصص بدلاً من الواجهات الافتراضية. |
+| `maintenanceDisplayMode` | `AppControlDisplayMode` | `AppControlDisplayMode.fullScreen` | نمط عرض الصيانة (سواءً الافتراضي أو المخصص): `fullScreen` (شاشة كاملة) أو `dialog` (نافذة منبثقة فوق المحتوى). كلاهما يمنع الرجوع أو الخروج عبر `PopScope`. |
+| `forceUpdateDisplayMode` | `AppControlDisplayMode` | `AppControlDisplayMode.fullScreen` | نمط عرض التحديث الإجباري (سواءً الافتراضي أو المخصص): `fullScreen` أو `dialog`. كلاهما يمنع الرجوع أو الخروج عبر `PopScope`. |
+| `optionalUpdateDisplayMode` | `OptionalUpdateDisplayMode` | `OptionalUpdateDisplayMode.dialog` | نمط عرض التحديث الاختياري (سواءً الافتراضي أو المخصص): `dialog` (نافذة منبثقة)، أو `snackBar` (شريط عائم غير مزعج بأسفل الشاشة)، أو `fullScreen`. |
+| `maintenanceBuilder` | `MaintenanceWidgetBuilder?` | `null` | دالة لبناء واجهة صيانة مخصصة بالكامل بدلاً من الواجهة الافتراضية (تعمل مع نمطي `fullScreen` و `dialog`). |
+| `forceUpdateBuilder` | `ForceUpdateWidgetBuilder?` | `null` | دالة لبناء واجهة تحديث إجباري مخصصة بالكامل بدلاً من الواجهة الافتراضية (تعمل مع نمطي `fullScreen` و `dialog`). |
+| `optionalUpdateBuilder` | `OptionalUpdateWidgetBuilder?` | `null` | دالة لبناء واجهة تحديث اختياري مخصصة بالكامل تُعرض في الـ Overlay وتدعم جميع أنماط العرض (`dialog`, `snackBar`, `fullScreen`). |
 | `cubit` | `AppControlCubit?` | `null` | تمرير كائن `AppControlCubit` مسبق التجهيز (لـ Dependency Injection مثل `get_it` أو الـ Mocking). |
+| `enableLogging` | `bool?` | `null` | تفعيل سجلات التشخيص البرمجية (Diagnostic Runtime Logs) في الـ Console. إذا كانت `null` تعتمد على `AppControlLogger.enableLogging`. |
+| `logHandler` | `AppControlLogHandler?` | `null` | معالج مخصص اختياري لتوجيه السجلات لمنصات المراقبة مثل Sentry أو Firebase Crashlytics. |
+
+---
+
+## سجلات التشخيص البرمجية (Diagnostic Logging)
+
+توفر الحزمة نظام تسجيل تشخيصي شامل لتتبع جلب الإعدادات من Firestore، مقارنة الإصدارات، حالات الانتقال، وأخطاء الروابط:
+
+```dart
+// 1. تفعيل السجلات عبر الودجت
+FirestoreAppControl(
+  enableLogging: true,
+  child: child!,
+)
+
+// 2. أو تفعيلها عاماً في التطبيق
+AppControlLogger.enableLogging = true;
+
+// 3. توجيه السجلات لمعالج مخصص (مثل Sentry أو Firebase Crashlytics)
+AppControlLogger.customHandler = (message, {level, error, stackTrace}) {
+  debugPrint('[AppControl][${level.label}]: $message');
+  if (error != null) {
+    // FirebaseCrashlytics.instance.recordError(error, stackTrace);
+  }
+};
+```
 
 ---
 
@@ -173,4 +200,23 @@ FirestoreAppControl(
     "store_url": "https://apps.apple.com/app/id123456789"
   }
 }
+```
+
+---
+
+## تطبيق المعاينة التفاعلي (Interactive Example App)
+
+تحتوي الحزمة على تطبيق تجريبي متكامل وعملي داخل مجلد [`example/`](file:///Users/ebrahim/Desktop/flutter_packages/firestore_app_control/example) متصل بمشروع فايربيس **Firebase App Control** (`fir-app-control-ff3e2`):
+
+- **لوحة تحكم مباشرة (Live Firestore Presets)**: إرسال حالات الصيانة والتحديث الإجباري والاختياري مباشرة إلى Firestore بنقرة زر لمشاهدة الاستجابة اللحظية (Real-time).
+- **محاكي الإصدارات (App Version Simulator)**: اختبار سلوك مقارنة الإصدارات (`1.0.0`, `1.5.0`, `2.0.0`) فوراً.
+- **التبديل بين أنماط العرض**: تجربة الشاشة الكاملة مقابل الـ Dialog والـ SnackBar.
+- **التبديل بين الواجهات الافتراضية والمخصصة (Custom Builders)**: معاينة التصاميم المخصصة مقابل واجهات الحزمة الافتراضية.
+- **نافذة السجلات اللحظية (Live Diagnostics Console)**: عرض سجلات `AppControlLogger` التشخيصية وتتبع الأحداث فور وقوعها.
+- **اختبار ثبات الـ Overlay أثناء التنقل**: التحقق من بقاء شاشة الحجب/التحديث نشطة حتى مع التنقل بين المسارات والصفحات (`Navigator.push`).
+
+### تشغيل المثال:
+```bash
+cd example
+flutter run
 ```

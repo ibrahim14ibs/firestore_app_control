@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/app_config.dart';
+import '../utils/app_control_logger.dart';
 
 /// Floating in-stack SnackBar / banner for optional updates.
 ///
@@ -28,6 +29,7 @@ class DefaultOptionalUpdateSnackBar extends StatelessWidget {
         : 'Unable to open app store';
 
     if (rawUrl.isEmpty) {
+      AppControlLogger.warning('Cannot open store: storeUrl is empty.');
       if (context.mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(errorMsg)),
@@ -38,6 +40,7 @@ class DefaultOptionalUpdateSnackBar extends StatelessWidget {
 
     final uri = Uri.tryParse(rawUrl);
     if (uri == null) {
+      AppControlLogger.warning('Cannot open store: invalid URI "$rawUrl".');
       if (context.mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(errorMsg)),
@@ -46,16 +49,26 @@ class DefaultOptionalUpdateSnackBar extends StatelessWidget {
       return;
     }
 
+    AppControlLogger.info('Launching store URL: "$rawUrl"...');
     try {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (launched) {
+        AppControlLogger.info('Successfully launched store URL: "$rawUrl".');
         onDismiss();
-      } else if (context.mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text(errorMsg)),
-        );
+      } else {
+        AppControlLogger.warning('launchUrl returned false for store URL: "$rawUrl".');
+        if (context.mounted) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(content: Text(errorMsg)),
+          );
+        }
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppControlLogger.error(
+        'Exception while launching store URL "$rawUrl": $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (context.mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(errorMsg)),

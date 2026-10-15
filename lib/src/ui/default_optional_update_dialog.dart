@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/app_config.dart';
+import '../utils/app_control_logger.dart';
 
 class DefaultOptionalUpdateDialog extends StatelessWidget {
   final PlatformConfig platformConfig;
@@ -51,6 +52,7 @@ class DefaultOptionalUpdateDialog extends StatelessWidget {
         : 'Unable to open app store. Please check the store link.';
 
     if (rawUrl.isEmpty) {
+      AppControlLogger.warning('Cannot open store: storeUrl is empty.');
       if (context.mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(errorMsg)),
@@ -61,6 +63,7 @@ class DefaultOptionalUpdateDialog extends StatelessWidget {
 
     final uri = Uri.tryParse(rawUrl);
     if (uri == null) {
+      AppControlLogger.warning('Cannot open store: invalid URI "$rawUrl".');
       if (context.mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(errorMsg)),
@@ -69,20 +72,28 @@ class DefaultOptionalUpdateDialog extends StatelessWidget {
       return;
     }
 
+    AppControlLogger.info('Launching store URL: "$rawUrl"...');
     try {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (launched) {
+        AppControlLogger.info('Successfully launched store URL: "$rawUrl".');
         if (context.mounted) {
           _dismiss(context);
         }
       } else {
+        AppControlLogger.warning('launchUrl returned false for store URL: "$rawUrl".');
         if (context.mounted) {
           ScaffoldMessenger.maybeOf(context)?.showSnackBar(
             SnackBar(content: Text(errorMsg)),
           );
         }
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppControlLogger.error(
+        'Exception while launching store URL "$rawUrl": $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (context.mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(errorMsg)),

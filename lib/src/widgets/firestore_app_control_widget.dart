@@ -13,6 +13,7 @@ import '../ui/default_maintenance_view.dart';
 import '../ui/default_optional_update_dialog.dart';
 import '../ui/default_optional_update_snackbar.dart';
 import '../ui/default_optional_update_view.dart';
+import '../utils/app_control_logger.dart';
 
 /// Display mode for blocking application states (maintenance mode and force update).
 enum AppControlDisplayMode {
@@ -49,12 +50,16 @@ typedef ForceUpdateWidgetBuilder = Widget Function(
   VoidCallback onRetry,
 );
 
-typedef OptionalUpdateDialogBuilder = void Function(
+typedef OptionalUpdateWidgetBuilder = Widget Function(
   BuildContext context,
   PlatformConfig platformConfig,
   String currentVersion,
   VoidCallback onDismiss,
 );
+
+/// Deprecated: Use [OptionalUpdateWidgetBuilder] instead.
+@Deprecated('Use OptionalUpdateWidgetBuilder instead.')
+typedef OptionalUpdateDialogBuilder = OptionalUpdateWidgetBuilder;
 
 /// Root widget for plug-and-play remote application control.
 ///
@@ -93,10 +98,11 @@ class FirestoreAppControl extends StatefulWidget {
   /// If provided, completely replaces the default force update screen.
   final ForceUpdateWidgetBuilder? forceUpdateBuilder;
 
-  /// Custom dialog builder or trigger for optional updates.
+  /// Custom widget builder for optional updates.
   ///
-  /// If provided, completely replaces [DefaultOptionalUpdateDialog].
-  final OptionalUpdateDialogBuilder? optionalUpdateBuilder;
+  /// If provided, replaces the default optional update UI and is rendered
+  /// according to [optionalUpdateDisplayMode].
+  final OptionalUpdateWidgetBuilder? optionalUpdateBuilder;
 
   /// Optional pre-configured [AppControlCubit] instance.
   ///
@@ -122,20 +128,28 @@ class FirestoreAppControl extends StatefulWidget {
   /// [FirestoreAppControl.showOptionalUpdateDialog] manually in your screen.
   final bool autoShowOptionalUpdate;
 
-  /// Display mode for maintenance mode when [maintenanceBuilder] is null.
+  /// Display mode for maintenance mode (both default and custom [maintenanceBuilder]).
   ///
   /// Defaults to [AppControlDisplayMode.fullScreen].
   final AppControlDisplayMode maintenanceDisplayMode;
 
-  /// Display mode for force update when [forceUpdateBuilder] is null.
+  /// Display mode for force update (both default and custom [forceUpdateBuilder]).
   ///
   /// Defaults to [AppControlDisplayMode.fullScreen].
   final AppControlDisplayMode forceUpdateDisplayMode;
 
-  /// Display mode for optional updates when [optionalUpdateBuilder] is null.
+  /// Display mode for optional updates (both default and custom [optionalUpdateBuilder]).
   ///
   /// Defaults to [OptionalUpdateDisplayMode.dialog].
   final OptionalUpdateDisplayMode optionalUpdateDisplayMode;
+
+  /// Whether to enable diagnostic runtime logs in the console.
+  ///
+  /// If `null`, falls back to [AppControlLogger.enableLogging].
+  final bool? enableLogging;
+
+  /// Optional custom log handler callback for intercepting logs (e.g. Sentry, Crashlytics).
+  final AppControlLogHandler? logHandler;
 
   const FirestoreAppControl({
     super.key,
@@ -154,6 +168,8 @@ class FirestoreAppControl extends StatefulWidget {
     this.maintenanceDisplayMode = AppControlDisplayMode.fullScreen,
     this.forceUpdateDisplayMode = AppControlDisplayMode.fullScreen,
     this.optionalUpdateDisplayMode = OptionalUpdateDisplayMode.dialog,
+    this.enableLogging,
+    this.logHandler,
   });
 
   /// Manually triggers display of the optional update overlay if an update is available.
@@ -174,12 +190,18 @@ class FirestoreAppControl extends StatefulWidget {
 class _FirestoreAppControlState extends State<FirestoreAppControl> {
   late final AppControlCubit _cubit;
   late final bool _internalCubit;
+  late final AppControlLogContext _logger;
   bool _isOverlayVisible = false;
   Timer? _delayTimer;
 
   @override
   void initState() {
     super.initState();
+    _logger = AppControlLogContext(
+      enableLogging: widget.enableLogging,
+      logHandler: widget.logHandler,
+    );
+    _logger.info('FirestoreAppControl initialized.');
     if (widget.cubit != null) {
       _cubit = widget.cubit!;
       _internalCubit = false;
@@ -187,10 +209,14 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
       final dataSource = FirestoreConfigDataSourceImpl(
         firestore: widget.firestore,
         documentPath: widget.documentPath,
+        enableLogging: widget.enableLogging,
+        logHandler: widget.logHandler,
       );
       _cubit = AppControlCubit(
         dataSource: dataSource,
         overrideVersion: widget.overrideVersion,
+        enableLogging: widget.enableLogging,
+        logHandler: widget.logHandler,
       );
       _internalCubit = true;
       _cubit.init();
@@ -207,22 +233,29 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
   }
 
   void _scheduleOverlay(AppControlOptionalUpdate state) {
-    if (!widget.autoShowOptionalUpdate) return;
+    if (!widget.autoShowOptionalUpdate) {
+      _logger.debug('autoShowOptionalUpdate is false. Optional update overlay will not be scheduled automatically.');
+      return;
+    }
     _delayTimer?.cancel();
 
     if (widget.optionalUpdateDelay != null &&
         widget.optionalUpdateDelay! > Duration.zero) {
+      _logger.info('Scheduling optional update overlay to appear in ${widget.optionalUpdateDelay}.');
       _delayTimer = Timer(widget.optionalUpdateDelay!, () {
         if (mounted) {
+          _logger.info('Delay timer elapsed. Displaying optional update overlay (${widget.optionalUpdateDisplayMode}).');
           setState(() => _isOverlayVisible = true);
         }
       });
     } else {
+      _logger.info('Displaying optional update overlay immediately (${widget.optionalUpdateDisplayMode}).');
       _isOverlayVisible = true;
     }
   }
 
   void _dismissOverlay() {
+    _logger.info('Dismissing optional update overlay.');
     _delayTimer?.cancel();
     if (mounted) {
       setState(() => _isOverlayVisible = false);
@@ -231,14 +264,18 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
   }
 
   void _showOverlayManually() {
+    _logger.info('showOptionalUpdateDialog() triggered manually.');
     final state = _cubit.state;
     if (state is AppControlOptionalUpdate && !state.dismissedInSession) {
       setState(() => _isOverlayVisible = true);
+    } else {
+      _logger.info('Manual optional update dialog requested, but state is not AppControlOptionalUpdate: $state');
     }
   }
 
   @override
   void dispose() {
+    _logger.info('Disposing FirestoreAppControl widget.');
     _delayTimer?.cancel();
     if (_internalCubit) {
       _cubit.close();
@@ -248,34 +285,33 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider.value(
+    Widget content = BlocProvider.value(
       value: _cubit,
       child: BlocConsumer<AppControlCubit, AppControlState>(
         listenWhen: (prev, curr) =>
             curr is AppControlOptionalUpdate && !curr.dismissedInSession,
         listener: (context, state) {
           if (state is AppControlOptionalUpdate && !state.dismissedInSession) {
-            if (widget.optionalUpdateBuilder != null) {
-              widget.optionalUpdateBuilder!(
-                context,
-                state.platformConfig,
-                state.currentVersion,
-                _dismissOverlay,
-              );
-            } else {
-              _scheduleOverlay(state);
-            }
+            _scheduleOverlay(state);
           }
         },
         builder: (context, state) {
           final showOverlay = _isOverlayVisible &&
               state is AppControlOptionalUpdate &&
-              !state.dismissedInSession &&
-              widget.optionalUpdateBuilder == null;
+              !state.dismissedInSession;
 
           Widget? overlayWidget;
           if (showOverlay) {
             final optionalState = state;
+            final customWidget = widget.optionalUpdateBuilder != null
+                ? widget.optionalUpdateBuilder!(
+                    context,
+                    optionalState.platformConfig,
+                    optionalState.currentVersion,
+                    _dismissOverlay,
+                  )
+                : null;
+
             switch (widget.optionalUpdateDisplayMode) {
               case OptionalUpdateDisplayMode.dialog:
                 overlayWidget = Positioned.fill(
@@ -300,12 +336,13 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
                           Center(
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 420),
-                              child: DefaultOptionalUpdateDialog(
-                                platformConfig: optionalState.platformConfig,
-                                currentVersion: optionalState.currentVersion,
-                                onDismiss: _dismissOverlay,
-                                primaryColor: widget.primaryColor,
-                              ),
+                              child: customWidget ??
+                                  DefaultOptionalUpdateDialog(
+                                    platformConfig: optionalState.platformConfig,
+                                    currentVersion: optionalState.currentVersion,
+                                    onDismiss: _dismissOverlay,
+                                    primaryColor: widget.primaryColor,
+                                  ),
                             ),
                           ),
                         ],
@@ -322,24 +359,26 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 500),
-                        child: DefaultOptionalUpdateSnackBar(
-                          platformConfig: optionalState.platformConfig,
-                          currentVersion: optionalState.currentVersion,
-                          onDismiss: _dismissOverlay,
-                          primaryColor: widget.primaryColor,
-                        ),
+                        child: customWidget ??
+                            DefaultOptionalUpdateSnackBar(
+                              platformConfig: optionalState.platformConfig,
+                              currentVersion: optionalState.currentVersion,
+                              onDismiss: _dismissOverlay,
+                              primaryColor: widget.primaryColor,
+                            ),
                       ),
                     ),
                   ),
                 );
               case OptionalUpdateDisplayMode.fullScreen:
                 overlayWidget = Positioned.fill(
-                  child: DefaultOptionalUpdateView(
-                    platformConfig: optionalState.platformConfig,
-                    currentVersion: optionalState.currentVersion,
-                    onDismiss: _dismissOverlay,
-                    primaryColor: widget.primaryColor,
-                  ),
+                  child: customWidget ??
+                      DefaultOptionalUpdateView(
+                        platformConfig: optionalState.platformConfig,
+                        currentVersion: optionalState.currentVersion,
+                        onDismiss: _dismissOverlay,
+                        primaryColor: widget.primaryColor,
+                      ),
                 );
             }
           }
@@ -355,34 +394,40 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
           return switch (state) {
             AppControlMaintenance(:final maintenance) => PopScope(
                 canPop: false,
-                child: widget.maintenanceBuilder != null
-                    ? widget.maintenanceBuilder!(
-                        context,
-                        maintenance,
-                        () => _cubit.checkConfig(),
-                      )
-                    : (widget.maintenanceDisplayMode == AppControlDisplayMode.dialog
-                        ? Stack(
-                            fit: StackFit.passthrough,
-                            children: [
-                              widget.child,
-                              Positioned.fill(
-                                child: Material(
-                                  color: Colors.black54,
-                                  type: MaterialType.canvas,
-                                  child: Center(
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(maxWidth: 420),
-                                      child: DefaultMaintenanceDialog(
-                                        maintenance: maintenance,
-                                        onRetry: () => _cubit.checkConfig(),
-                                        primaryColor: widget.primaryColor,
-                                      ),
-                                    ),
-                                  ),
+                child: widget.maintenanceDisplayMode == AppControlDisplayMode.dialog
+                    ? Stack(
+                        fit: StackFit.passthrough,
+                        children: [
+                          widget.child,
+                          Positioned.fill(
+                            child: Material(
+                              color: Colors.black54,
+                              type: MaterialType.canvas,
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 420),
+                                  child: widget.maintenanceBuilder != null
+                                      ? widget.maintenanceBuilder!(
+                                          context,
+                                          maintenance,
+                                          () => _cubit.checkConfig(),
+                                        )
+                                      : DefaultMaintenanceDialog(
+                                          maintenance: maintenance,
+                                          onRetry: () => _cubit.checkConfig(),
+                                          primaryColor: widget.primaryColor,
+                                        ),
                                 ),
                               ),
-                            ],
+                            ),
+                          ),
+                        ],
+                      )
+                    : (widget.maintenanceBuilder != null
+                        ? widget.maintenanceBuilder!(
+                            context,
+                            maintenance,
+                            () => _cubit.checkConfig(),
                           )
                         : DefaultMaintenanceView(
                             maintenance: maintenance,
@@ -397,38 +442,46 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
             ) =>
               PopScope(
                 canPop: false,
-                child: widget.forceUpdateBuilder != null
-                    ? widget.forceUpdateBuilder!(
-                        context,
-                        platformConfig,
-                        currentVersion,
-                        isOffline,
-                        () => _cubit.checkConfig(),
-                      )
-                    : (widget.forceUpdateDisplayMode == AppControlDisplayMode.dialog
-                        ? Stack(
-                            fit: StackFit.passthrough,
-                            children: [
-                              widget.child,
-                              Positioned.fill(
-                                child: Material(
-                                  color: Colors.black54,
-                                  type: MaterialType.canvas,
-                                  child: Center(
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(maxWidth: 420),
-                                      child: DefaultForceUpdateDialog(
-                                        platformConfig: platformConfig,
-                                        currentVersion: currentVersion,
-                                        isOffline: isOffline,
-                                        onRetry: () => _cubit.checkConfig(),
-                                        primaryColor: widget.primaryColor,
-                                      ),
-                                    ),
-                                  ),
+                child: widget.forceUpdateDisplayMode == AppControlDisplayMode.dialog
+                    ? Stack(
+                        fit: StackFit.passthrough,
+                        children: [
+                          widget.child,
+                          Positioned.fill(
+                            child: Material(
+                              color: Colors.black54,
+                              type: MaterialType.canvas,
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 420),
+                                  child: widget.forceUpdateBuilder != null
+                                      ? widget.forceUpdateBuilder!(
+                                          context,
+                                          platformConfig,
+                                          currentVersion,
+                                          isOffline,
+                                          () => _cubit.checkConfig(),
+                                        )
+                                      : DefaultForceUpdateDialog(
+                                          platformConfig: platformConfig,
+                                          currentVersion: currentVersion,
+                                          isOffline: isOffline,
+                                          onRetry: () => _cubit.checkConfig(),
+                                          primaryColor: widget.primaryColor,
+                                        ),
                                 ),
                               ),
-                            ],
+                            ),
+                          ),
+                        ],
+                      )
+                    : (widget.forceUpdateBuilder != null
+                        ? widget.forceUpdateBuilder!(
+                            context,
+                            platformConfig,
+                            currentVersion,
+                            isOffline,
+                            () => _cubit.checkConfig(),
                           )
                         : DefaultForceUpdateView(
                             platformConfig: platformConfig,
@@ -443,5 +496,14 @@ class _FirestoreAppControlState extends State<FirestoreAppControl> {
         },
       ),
     );
+
+    if (Directionality.maybeOf(context) == null) {
+      content = Directionality(
+        textDirection: TextDirection.ltr,
+        child: content,
+      );
+    }
+
+    return content;
   }
 }
